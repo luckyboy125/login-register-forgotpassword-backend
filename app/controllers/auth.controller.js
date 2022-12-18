@@ -1,17 +1,16 @@
 const config = require("../config/auth.config");
 const db = require("../models");
 const User = db.user;
-const mailchimpClient = require("@mailchimp/mailchimp_transactional")(
-  "md-NoaHDun1FDsLRr5ONLzEvw"
-);
-
 var jwt = require("jsonwebtoken");
 var bcrypt = require("bcryptjs");
+const mailsend = require("../utils/mailsend");
 
 exports.signup = (req, res) => {
+  console.log("signup params : ", req.body);
   const user = new User({
     email: req.body.email,
     password: bcrypt.hashSync(req.body.password, 8),
+    verify: false,
   });
 
   user.save((err, user) => {
@@ -24,42 +23,12 @@ exports.signup = (req, res) => {
       expiresIn: 300, // 24 hours
     });
 
-    async function send(_email, _token) {
-      try {
-        const response = await mailchimpClient.messages.send({
-          message: {
-            subject: "Test Email",
-            from_email: "support@kitchenft.io",
-            to: [
-              {
-                email: _email,
-                type: "to",
-              },
-            ],
-            html: `<!DOCTYPE html>
-            <html lang="en">
-              <head>
-                <meta charset="UTF-8" />
-                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-              </head>
-              <body>
-                <h1 style="color: #fff">Hi there!</h1>
-            
-                <p style="color: #fff">Please click below button to verify your email.</p>
-                <a href="http://localhost:3000/signup/verify/${_token}" style="color: #fff; background-color: #61777f;text-decoration: none; padding: 10px 20px; border-radius: 20px;">Click Me</a>
-            
-                <p>Thank you!</p>
-            
-              </body>
-            </html>
-            `,
-          },
-        });
-      } catch (err) {
-        console.log(err);
-      }
-    }
-    send(user.email, token);
+    mailsend(
+      "Email Verify",
+      user.email,
+      `http://localhost:3000/signup/verify/${token}`,
+      "Please click below button to verify your email"
+    );
     res.status(200).send({
       message: "Email will be sent",
     });
@@ -67,11 +36,16 @@ exports.signup = (req, res) => {
 };
 
 exports.signupverify = (req, res) => {
+  console.log("request data of sign up verify : ", req.body);
   const decodedId = jwt.decode(req.body.token, config.secret);
+  console.log("Decode Id : ", decodedId);
 
-  User.findOne({
-    _id: decodedId.id,
-  }).exec((err, user) => {
+  User.findOneAndUpdate(
+    {
+      _id: decodedId.id,
+    },
+    { verify: true }
+  ).exec((err, user) => {
     if (err) {
       res.status(500).send({ message: err });
       return;
@@ -109,6 +83,12 @@ exports.signin = (req, res) => {
 
     if (!user) {
       return res.status(404).send({ message: "User Not found." });
+    }
+
+    if (!user.verify) {
+      return res.status(404).send({
+        message: "You are not verified yet. Please verify your email!",
+      });
     }
 
     var passwordIsValid = bcrypt.compareSync(req.body.password, user.password);
@@ -153,42 +133,12 @@ exports.forgotpassword = (req, res) => {
 
     req.session.token = token;
 
-    async function sendforgotpasswordmail(_email, _token) {
-      try {
-        const response = await mailchimpClient.messages.send({
-          message: {
-            subject: "Forgot Password",
-            from_email: "support@kitchenft.io",
-            to: [
-              {
-                email: _email,
-                type: "to",
-              },
-            ],
-            html: `<!DOCTYPE html>
-            <html lang="en">
-              <head>
-                <meta charset="UTF-8" />
-                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-              </head>
-              <body>
-                <h1 style="color: #fff">Hi there!</h1>
-            
-                <p style="color: #fff">Please click below button. I have to check your email before change your password.</p>
-                <a href="http://localhost:3000/forgotpassword/verify/${_token}" style="color: #fff; background-color: #61777f;text-decoration: none; padding: 10px 20px; border-radius: 20px;">Click Me</a>
-            
-                <p>Thank you!</p>
-            
-              </body>
-            </html>
-            `,
-          },
-        });
-      } catch (err) {
-        console.log(err);
-      }
-    }
-    sendforgotpasswordmail(user.email, token);
+    mailsend(
+      "Forgot Password",
+      user.email,
+      `http://localhost:3000/forgotpassword/verify/${token}`,
+      "Please click below button to verify your email"
+    );
     res.status(200).send({
       message: "Email will be sent",
     });
@@ -226,6 +176,40 @@ exports.forgotpasswordverify = (req, res) => {
         email: user.email,
       },
       token: token,
+    });
+  });
+};
+
+exports.changeemail = (req, res) => {
+  User.findOneAndUpdate(
+    {
+      email: req.body.email,
+    },
+    { email: req.body.newemail }
+  ).exec((err, user) => {
+    if (err) {
+      res.status(500).send({ message: err });
+      return;
+    }
+
+    if (!user) {
+      return res.status(404).send({ message: "Expired time is over." });
+    }
+
+    var token = jwt.sign({ id: user._id }, config.secret, {
+      expiresIn: 86400, // 24 hours
+    });
+
+    req.session.token = token;
+
+    mailsend(
+      "Email Verify",
+      req.body.newemail,
+      `http://localhost:3000/signup/verify/${token}`,
+      "Please click below button to verify your new email"
+    );
+    res.status(200).send({
+      message: "Email will be sent",
     });
   });
 };
