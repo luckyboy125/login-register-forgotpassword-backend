@@ -1,4 +1,4 @@
 module.exports = {
-  apikey: "md-NoaHDun1FDsLRr5ONLzEvw",
-  domain: "support@kitchenft.io",
+  apikey: "your-api-key",
+  domain: "your-domain",
 };
