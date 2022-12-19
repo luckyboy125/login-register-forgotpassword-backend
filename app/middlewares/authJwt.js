@@ -1,11 +1,10 @@
 const jwt = require("jsonwebtoken");
 const config = require("../config/auth.config.js");
-const db = require("../models");
 
 verifyToken = (req, res, next) => {
-  let token = req.session.token;
+  const token = req.body.token;
 
-  if (!token) {
+  if (!token || token === null || token === undefined) {
     return res.status(403).send({ message: "No token provided!" });
   }
 
@@ -14,6 +13,7 @@ verifyToken = (req, res, next) => {
       return res.status(401).send({ message: "Unauthorized!" });
     }
     req.userId = decoded.id;
+
     next();
   });
 };

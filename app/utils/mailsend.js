@@ -5,14 +5,6 @@ const mailchimpClient = require("@mailchimp/mailchimp_transactional")(
 
 const mailsend = async (mailtitle, tomail, url, description) => {
   try {
-    console.log(
-      "paramas: ",
-      mailtitle,
-      tomail,
-      url,
-      description,
-      mailConfig.domain
-    );
     await mailchimpClient.messages.send({
       message: {
         subject: mailtitle,

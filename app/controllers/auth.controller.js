@@ -6,7 +6,6 @@ var bcrypt = require("bcryptjs");
 const mailsend = require("../utils/mailsend");
 
 exports.signup = (req, res) => {
-  console.log("signup params : ", req.body);
   const user = new User({
     email: req.body.email,
     password: bcrypt.hashSync(req.body.password, 8),
@@ -36,9 +35,7 @@ exports.signup = (req, res) => {
 };
 
 exports.signupverify = (req, res) => {
-  console.log("request data of sign up verify : ", req.body);
   const decodedId = jwt.decode(req.body.token, config.secret);
-  console.log("Decode Id : ", decodedId);
 
   User.findOneAndUpdate(
     {
@@ -105,6 +102,43 @@ exports.signin = (req, res) => {
 
     res.status(200).send({
       message: "User was logined successfully!",
+      user: {
+        id: user._id,
+        email: user.email,
+      },
+      token: token,
+    });
+  });
+};
+
+exports.signinwithtoken = (req, res) => {
+  const decodedId = jwt.decode(req.body.token, config.secret);
+
+  User.findOne({
+    _id: decodedId.id,
+  }).exec((err, user) => {
+    if (err) {
+      res.status(500).send({ message: err });
+      return;
+    }
+
+    if (!user) {
+      return res.status(404).send({ message: "User Not found." });
+    }
+
+    if (!user.verify) {
+      return res.status(404).send({
+        message: "You are not verified yet. Please verify your email!",
+      });
+    }
+
+    var token = jwt.sign({ id: user._id }, config.secret, {
+      expiresIn: 86400, // 24 hours
+    });
+
+    req.session.token = token;
+
+    res.status(200).send({
       user: {
         id: user._id,
         email: user.email,
